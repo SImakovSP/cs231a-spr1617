@@ -17,8 +17,24 @@ def compute_vanishing_point(points):
     Returns:
         vanishing_point: The pixel location of the vanishing point.
     """
-    # TODO: Fill in this code.
-    pass
+    # construct (x1, y1) (x2, y2) (x3, y3) (x4, y4)
+    x1 = points[0][0]; y1 = points[0][1];
+    x2 = points[1][0]; y2 = points[1][1];
+    x3 = points[2][0]; y3 = points[2][1];
+    x4 = points[3][0]; y4 = points[3][1];
+
+    # slopes
+    m1 = (float)(y2 - y1) / (x2 - x1)
+    m2 = (float)(y4 - y3) / (x4 - x3)
+    # intercepts
+    b1 = y2 - m1 * x2
+    b2 = y4 - m2 * x4
+
+    # vanishing point coordinates
+    x = (b2 - b1) / (m1 - m2)
+    y = m1 * ((b2 - b1)/(m1 - m2)) + b1
+    vanishing_point = np.array([x, y])
+    return vanishing_point
 
 
 def compute_K_from_vanishing_points(vanishing_points):
@@ -29,9 +45,43 @@ def compute_K_from_vanishing_points(vanishing_points):
     Returns:
         K: The intrinsic camera matrix (3x3 matrix).
     """
-    # TODO: Fill in this code.
-    pass
+    # vanishing points used
+    v1 = vanishing_points[0]
+    v2 = vanishing_points[1]
+    v3 = vanishing_points[2]
 
+    # construct constraint matrix A from each pair of vanishing points
+    A = np.zeros((3, 3))
+    # 1 + 2
+    vi = v1
+    vj = v2
+    A[0] = np.array([(vi[0]*vj[0]+vi[1]*vj[1]), (vi[0]+vj[0]), (vi[1]+vj[1])])
+
+    # 1 + 3
+    vi = v1
+    vj = v3
+    A[1] = np.array([(vi[0]*vj[0]+vi[1]*vj[1]), (vi[0]+vj[0]), (vi[1]+vj[1])])
+
+    # 2 + 3
+    vi = v2
+    vj = v3
+    A[2] = np.array([(vi[0]*vj[0]+vi[1]*vj[1]), (vi[0]+vj[0]), (vi[1]+vj[1])])
+
+    # add one column of ones
+    A_ones = np.ones((A.shape[0], 1))
+    A = np.hstack((A, A_ones))
+
+    # SVD
+    U, s, V = np.linalg.svd(A)
+    w = V[-1, :]
+    omega = np.array([[w[0], 0, w[1]],
+                      [0, w[0], w[2]],
+                      [w[1], w[2], w[3]]])
+
+    # find K matrix from omega
+    KT_inv = np.linalg.cholesky(omega)
+    K = np.linalg.inv(KT_inv.T)
+    return K
 
 def compute_angle_between_planes(vanishing_pair1, vanishing_pair2, K):
     """Compute angle between planes of the given pairs of vanishing points.
@@ -46,9 +96,25 @@ def compute_angle_between_planes(vanishing_pair1, vanishing_pair2, K):
         angle: The angle in degrees between the planes which the vanishing
             point pair comes from2.
     """
-    # TODO: Fill in this code.
-    pass
+    omega_inv = K.dot(K.T)
 
+    # a set of vanishing points on one plane
+    v1 = np.hstack((vanishing_pair1[0], 1))
+    v2 = np.hstack((vanishing_pair1[1], 1))
+
+    # another set of vanishing points on the other plane
+    v3 = np.hstack((vanishing_pair2[0], 1))
+    v4 = np.hstack((vanishing_pair2[1], 1))
+
+    # find two vanishing lines
+    L1 = np.cross(v1.T, v2.T)
+    L2 = np.cross(v3.T, v4.T)
+
+    # find the angle between planes
+    costheta = (L1.T.dot(omega_inv).dot(L2)) / (np.sqrt(L1.T.dot(omega_inv).dot(L1)) * np.sqrt(L2.T.dot(omega_inv).dot(L2)))
+    theta = (np.arccos(costheta) / math.pi) * 180
+
+    return theta
 
 def compute_rotation_matrix_between_cameras(vanishing_pts1, vanishing_pts2, K):
     """Compute rotation matrix between two cameras given their vanishing points.
@@ -61,9 +127,39 @@ def compute_rotation_matrix_between_cameras(vanishing_pts1, vanishing_pts2, K):
     Returns:
         R: The rotation matrix between camera 1 and camera 2.
     """
-    # TODO: Fill in this code.
-    pass
+    # a set of vanishing points on one image
+    v1 = np.hstack((vanishing_pts1[0], 1))
+    v2 = np.hstack((vanishing_pts1[1], 1))
+    v3 = np.hstack((vanishing_pts1[2], 1))
 
+    # another set of vanishing points on the other image
+    v4 = np.hstack((vanishing_pts2[0], 1))
+    v5 = np.hstack((vanishing_pts2[1], 1))
+    v6= np.hstack((vanishing_pts2[2], 1))
+
+    # first image vanishing points directions
+    d1 = np.linalg.inv(K).dot(v1) / np.linalg.norm(np.linalg.inv(K).dot(v1))
+    d2 = np.linalg.inv(K).dot(v2) / np.linalg.norm(np.linalg.inv(K).dot(v2))
+    d3 = np.linalg.inv(K).dot(v3) / np.linalg.norm(np.linalg.inv(K).dot(v3))
+
+    # second image vanishing points directions
+    dPrime1 = np.linalg.inv(K).dot(v4) / np.linalg.norm(np.linalg.inv(K).dot(v4))
+    dPrime2 = np.linalg.inv(K).dot(v5) / np.linalg.norm(np.linalg.inv(K).dot(v5))
+    dPrime3 = np.linalg.inv(K).dot(v6) / np.linalg.norm(np.linalg.inv(K).dot(v6))
+
+    di = np.zeros((3, 3))
+    di[:, 0] = d1.T
+    di[:, 1] = d2.T
+    di[:, 2] = d3.T
+
+    diPrime = np.zeros((3, 3))
+    diPrime[:, 0] = dPrime1.T
+    diPrime[:, 1] = dPrime2.T
+    diPrime[:, 2] = dPrime3.T
+
+    # find rotation matrix
+    R = diPrime.dot(np.linalg.inv(di))
+    return R
 
 if __name__ == '__main__':
     # Part A: Compute vanishing points.
@@ -100,19 +196,19 @@ if __name__ == '__main__':
             [floor_vanishing1, floor_vanishing2],
             [box_vanishing1, box_vanishing2], K_actual)
     print
-    print "Angle between floor and box:", angle
+    print "Angle between floor and box: %f degrees" % angle
 
     # Part E: Compute the rotation matrix between the two cameras.
     rotation_matrix = compute_rotation_matrix_between_cameras(
             np.array([v1, v2, v3]), np.array([v1b, v2b, v3b]), K_actual)
     print
     print "Rotation between two cameras:\n", rotation_matrix
-    z, y, x = mat2euler(rotation_matrix)
-    x_angle = x * 180 / math.pi
-    y_angle = y * 180 / math.pi
-    z_angle = z * 180 / math.pi
-    print
-    print "Angle around z-axis (pointing out of camera): %f degrees" % z_angle
-    print "Angle around y-axis (pointing vertically): %f degrees" % y_angle
-    print "Angle around x-axis (pointing horizontally): %f degrees" % x_angle
+    #z, y, x = mat2euler(rotation_matrix)
+    # x_angle = x * 180 / math.pi
+    # y_angle = y * 180 / math.pi
+    # z_angle = z * 180 / math.pi
+    # print
+    # print "Angle around z-axis (pointing out of camera): %f degrees" % z_angle
+    # print "Angle around y-axis (pointing vertically): %f degrees" % y_angle
+    # print "Angle around x-axis (pointing horizontally): %f degrees" % x_angle
 

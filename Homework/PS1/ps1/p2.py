@@ -16,7 +16,6 @@ the matching row in back_image will contain [148, 22].
 
 import numpy as np
 
-
 def compute_camera_matrix(real_XY, front_image, back_image):
     """Computes camera matrix given image and real-world coordinates.
 
@@ -27,8 +26,47 @@ def compute_camera_matrix(real_XY, front_image, back_image):
     Returns:
         camera_matrix: The calibrated camera matrix (3x4 matrix).
     """
-    # TODO: Fill in this code.
-    pass
+    img_num1 = front_image.shape[0]
+    img_num2 = back_image.shape[0]
+
+    x = np.zeros((2, img_num1+img_num2))
+    for i in xrange(img_num1):
+        x[:, i] = front_image[i, :].T
+    for j in xrange(img_num2):
+        x[:, j + img_num1] = back_image[j, :].T
+    x_ones = np.ones((1, x.shape[1]))
+    x = np.vstack((x, x_ones))
+
+    X = np.zeros((2, img_num1+img_num2))
+    for i in xrange(img_num1):
+        X[:, i] = real_XY[i, :].T
+    for j in xrange(img_num2):
+        X[:, j + img_num1] = real_XY[j, :].T
+    Z = np.zeros((1, X.shape[1]))
+    for k in xrange(Z.shape[1]):
+        if k >= img_num1:
+            Z[:, k] = 150
+    X = np.vstack((X, Z))
+    X_ones = np.ones((1, X.shape[1]))
+    X = np.vstack((X, X_ones))
+
+    A = np.zeros((2 * (img_num1+img_num2), 8))
+    for i in range(0, A.shape[0], 2):
+        A[i, :] = np.hstack((X[:, i/2].T, [0, 0, 0, 0]))
+        A[i + 1, :] = np.hstack(([0, 0, 0, 0], X[:, i/2].T))
+
+    b = front_image[0].T
+    for i in range(1, img_num1, 1):
+        b = np.hstack((b, front_image[i].T))
+    for j in range(img_num2):
+        b = np.hstack((b, back_image[j].T))
+    b = np.reshape(b, (2 * (img_num1 + img_num2), 1))
+
+    p = np.linalg.inv(A.T.dot(A)).dot(A.T).dot(b)
+    p = np.reshape(p, (2, -1))
+    camera_matrix = np.vstack((p, [0, 0, 0, 1]))
+
+    return camera_matrix
 
 
 def rms_error(camera_matrix, real_XY, front_image, back_image):
@@ -43,8 +81,36 @@ def rms_error(camera_matrix, real_XY, front_image, back_image):
         rms_error: The root mean square error of reprojecting the points back
             into the images.
     """
-    # TODO: Fill in this code.
-    pass
+    img_num1 = front_image.shape[0]
+    img_num2 = back_image.shape[0]
+
+    x = np.zeros((2, img_num1+img_num2))
+    for i in xrange(img_num1):
+        x[:, i] = front_image[i, :].T
+    for j in xrange(img_num2):
+        x[:, j + img_num1] = back_image[j, :].T
+    x_ones = np.ones((1, x.shape[1]))
+    x = np.vstack((x, x_ones))
+
+    X = np.zeros((2, img_num1+img_num2))
+    for i in xrange(img_num1):
+        X[:, i] = real_XY[i, :].T
+    for j in xrange(img_num2):
+        X[:, j + img_num1] = real_XY[j, :].T
+    Z = np.zeros((1, X.shape[1]))
+    for k in xrange(Z.shape[1]):
+        if k >= img_num1:
+            Z[:, k] = 150
+    X = np.vstack((X, Z))
+    X_ones = np.ones((1, X.shape[1]))
+    X = np.vstack((X, X_ones))
+
+    x_pred = camera_matrix.dot(X)
+    diff_sqr = (x_pred - x) ** 2
+    diff_sum = np.sum(np.sum(diff_sqr, axis=0))
+    diff_sum /= (img_num1 + img_num2)
+    rms_error = np.sqrt(diff_sum)
+    return rms_error
 
 if __name__ == '__main__':
     # Load the example coordinates setup.
