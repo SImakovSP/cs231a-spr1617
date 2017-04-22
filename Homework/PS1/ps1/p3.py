@@ -72,8 +72,8 @@ def compute_K_from_vanishing_points(vanishing_points):
     A = np.hstack((A, A_ones))
 
     # SVD
-    U, s, V = np.linalg.svd(A)
-    w = V[-1, :]
+    U, s, VT = np.linalg.svd(A)
+    w = VT[-1, :]
     omega = np.array([[w[0], 0, w[1]],
                       [0, w[0], w[2]],
                       [w[1], w[2], w[3]]])
@@ -81,6 +81,8 @@ def compute_K_from_vanishing_points(vanishing_points):
     # find K matrix from omega
     KT_inv = np.linalg.cholesky(omega)
     K = np.linalg.inv(KT_inv.T)
+    # normalize
+    K /= K[2, 2]
     return K
 
 def compute_angle_between_planes(vanishing_pair1, vanishing_pair2, K):
@@ -203,12 +205,12 @@ if __name__ == '__main__':
             np.array([v1, v2, v3]), np.array([v1b, v2b, v3b]), K_actual)
     print
     print "Rotation between two cameras:\n", rotation_matrix
-    #z, y, x = mat2euler(rotation_matrix)
-    # x_angle = x * 180 / math.pi
-    # y_angle = y * 180 / math.pi
-    # z_angle = z * 180 / math.pi
-    # print
-    # print "Angle around z-axis (pointing out of camera): %f degrees" % z_angle
-    # print "Angle around y-axis (pointing vertically): %f degrees" % y_angle
-    # print "Angle around x-axis (pointing horizontally): %f degrees" % x_angle
+    z, y, x = mat2euler(rotation_matrix)
+    x_angle = x * 180 / math.pi
+    y_angle = y * 180 / math.pi
+    z_angle = z * 180 / math.pi
+    print
+    print "Angle around z-axis (pointing out of camera): %f degrees" % z_angle
+    print "Angle around y-axis (pointing vertically): %f degrees" % y_angle
+    print "Angle around x-axis (pointing horizontally): %f degrees" % x_angle
 
