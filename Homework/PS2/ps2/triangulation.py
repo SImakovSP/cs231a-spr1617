@@ -129,12 +129,10 @@ def jacobian(point_3d, camera_matrices):
     for i in xrange(camera_matrices.shape[0]):
         Mi = camera_matrices[i]
         pi = Mi.dot(point_3d_homo)
-
         Jix = (pi[2]*np.array([Mi[0, 0], Mi[0, 1], Mi[0, 2]]) \
               - pi[0]*np.array([Mi[2, 0], Mi[2, 1], Mi[2, 2]])) / pi[2]**2
         Jiy = (pi[2]*np.array([Mi[1, 0], Mi[1, 1], Mi[1, 2]]) \
               - pi[1]*np.array([Mi[2, 0], Mi[2, 1], Mi[2, 2]])) / pi[2]**2
-
         J_set.append(Jix)
         J_set.append(Jiy)
 
@@ -173,21 +171,29 @@ Returns:
         two cameras
 '''
 def estimate_RT_from_E(E, image_points, K):
-    count = []
     RT = estimate_initial_RT(E)
-    M1 = K.dot(np.vstack((np.identity(3), 0)))
+    count = np.zeros((1, 4))
+    I0 = np.array([[1.0, 0.0, 0.0, 0.0],
+                   [0.0, 1.0, 0.0, 0.0],
+                   [0.0, 0.0, 1.0, 0.0]])
+    M1 = K.dot(I0)
 
     camera_matrices = np.zeros((2, 3, 4))
     camera_matrices[0] = M1
-
     for i in range(RT.shape[0]):
         RTi = RT[i] # 3x4 matrix
         M2i = K.dot(RTi)
         camera_matrices[1] = M2i
         for j in range(image_points.shape[0]):
-            Pj = nonlinear_estimate_3d_point(image_points[j], camera_matrices)
-            # TODO: WHAT THE FUCK IS THIS!!!!!!!
+            pointj_3d = nonlinear_estimate_3d_point(image_points[j], camera_matrices)
+            Pj = np.vstack((pointj_3d.reshape(3, 1), [1]))
+            p1j, p2j = camera_matrices[0].dot(Pj), camera_matrices[1].dot(Pj)
+            if p1j[2] > 0 and p2j[2] > 0:
+                count[0, i] += 1
 
+    maxIndex = np.argmax(count)
+    maxRT = RT[maxIndex]
+    return maxRT
 
 if __name__ == '__main__':
     run_pipeline = True
