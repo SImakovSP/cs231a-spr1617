@@ -22,10 +22,10 @@ def lls_eight_point_alg(points1, points2):
 
     W = np.zeros((points_num, 9))
     for i in xrange(points_num):
-        u1 = points2[i][0]
-        v1 = points2[i][1]
-        u2 = points1[i][0]
-        v2 = points1[i][1]
+        u1 = points1[i][0]
+        v1 = points1[i][1]
+        u2 = points2[i][0]
+        v2 = points2[i][1]
         W[i] = np.array([u1*u2, u2*v1, u2, v2*u1, v1*v2, v2, u1, v1, 1])
 
     # compute F_hat
@@ -79,7 +79,7 @@ def normalized_eight_point_alg(points1, points2):
                    [0, 0, 1]])
 
     q1 = T1.dot(points1.T).T; q2 = T2.dot(points2.T).T
-    Fq = lls_eight_point_alg(q2, q1)
+    Fq = lls_eight_point_alg(q1, q2)
     F = T2.T.dot(Fq).dot(T1)
 
     return F

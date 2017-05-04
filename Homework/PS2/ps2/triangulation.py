@@ -187,13 +187,23 @@ def estimate_RT_from_E(E, image_points, K):
         for j in range(image_points.shape[0]):
             pointj_3d = nonlinear_estimate_3d_point(image_points[j], camera_matrices)
             Pj = np.vstack((pointj_3d.reshape(3, 1), [1]))
-            p1j, p2j = camera_matrices[0].dot(Pj), camera_matrices[1].dot(Pj)
-            if p1j[2] > 0 and p2j[2] > 0:
+            Pj_prime = camera1tocamera2(Pj, RTi)
+            if Pj[2] > 0 and Pj_prime[2] > 0:
                 count[0, i] += 1
 
     maxIndex = np.argmax(count)
     maxRT = RT[maxIndex]
     return maxRT
+
+def camera1tocamera2(P, RT):
+    P_homo = np.array([P[0], P[1], P[2], 1.0])
+    A = np.zeros((4, 4))
+    A[0:3, :] = RT
+    A[3, :] = np.array([0.0, 0.0, 0.0, 1.0])
+    P_prime_homo = A.dot(P_homo.T)
+    P_prime_homo /= P_prime_homo[3]
+    P_prime = P_prime_homo[0:3]
+    return P_prime
 
 if __name__ == '__main__':
     run_pipeline = True

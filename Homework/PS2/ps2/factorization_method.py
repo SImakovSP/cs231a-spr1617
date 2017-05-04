@@ -32,6 +32,8 @@ def factorization_method(points_im1, points_im2):
         D[2*i:2*i+2, :] = points[:, 0:2].T
 
     U, s, VT = np.linalg.svd(D)
+    print U.shape, s.shape, VT.shape
+    print s       # print sigular values
     M = U[:, 0:3] # motion
     S = np.diag(s)[0:3, 0:3].dot(VT[0:3, :]) # structure
     return S, M
