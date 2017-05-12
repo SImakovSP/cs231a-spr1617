@@ -42,8 +42,26 @@ the location of a voxel in 3D space.
 '''
 def form_initial_voxels(xlim, ylim, zlim, num_voxels):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    x_dim = xlim[-1] - xlim[0]
+    y_dim = ylim[-1] - ylim[0]
+    z_dim = zlim[-1] - zlim[0]
+    total_volume = x_dim * y_dim * z_dim
 
+    voxel_volume = float(total_volume / num_voxels)
+    voxel_size = np.cbrt(voxel_volume)
+
+    x_voxel_num = np.round(x_dim / voxel_size)
+    y_voxel_num = np.round(y_dim / voxel_size)
+    z_voxel_num = np.round(z_dim / voxel_size)
+
+    x_coor = np.linspace(xlim[0]+0.5*voxel_size, xlim[0]+(0.5+x_voxel_num-1)*voxel_size, x_voxel_num)
+    y_coor = np.linspace(ylim[0]+0.5*voxel_size, ylim[0]+(0.5+y_voxel_num-1)*voxel_size, y_voxel_num)
+    z_coor = np.linspace(zlim[0]+0.5*voxel_size, zlim[0]+(0.5+z_voxel_num-1)*voxel_size, z_voxel_num)
+
+    XX, YY, ZZ = np.meshgrid(x_coor, y_coor, z_coor)
+    voxels = np.vstack((XX.reshape(-1), YY.reshape(-1), ZZ.reshape(-1))).reshape(3, -1).T
+
+    return voxels, voxel_size
 
 '''
 GET_VOXEL_BOUNDS: Gives a nice bounding box in which the object will be carved
@@ -93,7 +111,13 @@ def get_voxel_bounds(cameras, estimate_better_bounds = False, num_voxels = 4000)
 
     if estimate_better_bounds:
         # TODO: Implement this method!
-        raise Exception('Not Implemented Error')
+        voxels, voxel_size = form_initial_voxels(xlim, ylim, zlim, num_voxels)
+        for c in cameras:
+            voxels = carve(voxels, c)
+
+        xlim = [voxels[0][0]-1.5*voxel_size, voxels[0][0]+1.5*voxel_size]
+        ylim = [voxels[0][1]-1.5*voxel_size, voxels[0][1]+1.5*voxel_size]
+        zlim = [voxels[0][2]-1.5*voxel_size, voxels[0][2]+1.5*voxel_size]
     return xlim, ylim, zlim
     
 
@@ -113,7 +137,40 @@ Returns:
 '''
 def carve(voxels, camera):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # find all corresponding image points of voxels
+    homo_voxels = np.hstack((voxels, np.ones((voxels.shape[0], 1)))).T
+    # keep track of voxels index
+    N = voxels.shape[0]
+    voxel_index = np.arange(0, N)
+
+    # project from 3D to 2D, projection matrix: (3, 4)
+    P = camera.P
+    img_voxels = P.dot(homo_voxels)
+    # normalize
+    img_voxels /= img_voxels[2, :]
+    # drop out z
+    img_voxels = img_voxels[0:2, :].T
+
+    # check whether the voxel points are in range of image
+    img_y_max, img_x_max = camera.silhouette.shape
+    img_y_min = 0; img_x_min = 0
+
+    voxelX = img_voxels[:, 0]
+    x_range_filter = np.all([voxelX > img_x_min, voxelX < img_x_max], axis=0)
+    img_voxels = img_voxels[x_range_filter, :]
+    voxel_index = voxel_index[x_range_filter]
+
+    voxelY = img_voxels[:, 1]
+    y_range_filter = np.all([voxelY > img_y_min, voxelY < img_y_max], axis=0)
+    img_voxels = img_voxels[y_range_filter, :]
+    voxel_index = voxel_index[y_range_filter]
+
+    # check whether the point is in the silhouette
+    img_voxels = img_voxels.astype(int)
+    silhouette_filter = (camera.silhouette[img_voxels[:, 1], img_voxels[:, 0]] == 1)
+    voxel_index = voxel_index[silhouette_filter]
+
+    return voxels[voxel_index, :]
 
 
 '''
@@ -134,7 +191,7 @@ def estimate_silhouette(im):
 
 
 if __name__ == '__main__':
-    estimate_better_bounds = False
+    estimate_better_bounds = True
     use_true_silhouette = True
     frames = sio.loadmat('frames.mat')['frames'][0]
     cameras = [Camera(x) for x in frames]
