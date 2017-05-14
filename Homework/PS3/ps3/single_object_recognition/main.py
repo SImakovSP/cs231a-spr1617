@@ -11,7 +11,7 @@ MATCH_KEYPOINTS: Given two sets of descriptors corresponding to SIFT keypoints,
 find pairs of matching keypoints.
 
 Note: Read Lowe's Keypoint matching, finding the closest keypoint is not
-sufficient to find a match. thresh is the theshold for a valid match.
+sufficient to find a match. thresh is the threshold for a valid match.
 
 Arguments:
     descriptors1 - Descriptors corresponding to the first image. Each row
@@ -33,7 +33,21 @@ Returns:
 '''
 def match_keypoints(descriptors1, descriptors2, threshold = 0.7):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    matches_list = []
+    # for each row of descriptors1, find Euclidean distances to each row of descriptor2
+    for i in xrange(descriptors1.shape[0]):
+        descpt1 = descriptors1[i]
+        euc_dist = np.sqrt(np.sum((descriptors2 - descpt1)**2, axis=1))
+        index_sort = np.argsort(euc_dist, axis=None)
+
+        closest = index_sort[0]
+        second_closest = index_sort[1]
+        if (euc_dist[closest] < threshold * euc_dist[second_closest]):
+            matches_list.append(i)
+            matches_list.append(closest)
+
+    matches = np.array(matches_list).reshape(-1, 2)
+    return matches
 
 
 '''
@@ -71,8 +85,64 @@ Returns:
 def refine_match(keypoints1, keypoints2, matches, reprojection_threshold = 10,
         num_iterations = 1000):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # best parameters to return
+    best_model = None
+    best_inliers = []
+    best_count = 0
 
+    # every sample provides two constraints and
+    # H is a 3x3 matrix known up to scale
+    sample_size = 4
+    P = np.zeros((2 * sample_size, 9)) # refer to Note 1
+    for i in xrange(num_iterations):
+        sample_indexes = random.sample(range(0, matches.shape[0]), sample_size)
+        sample = matches[sample_indexes, :] # (4x2)
+
+        for index, elem in enumerate(sample):
+            # two keypoints indexes
+            point1_index = elem[0]
+            point2_index = elem[1]
+
+            # xi' = H(xi), xi: keypoints1(ui, vi), xi': keypoints2(ui', vi')
+            point1 = keypoints1[point1_index, 0:2] # (ui, vi)
+            point1 = np.append(point1, 1)          # (ui, vi, 1)
+            point2 = keypoints2[point2_index, 0:2] # (ui', vi')
+            ui_prime = point2[0]
+            vi_prime = point2[1]
+
+            # construct P matrix
+            P[2*index, :] = np.reshape(np.array([point1, np.zeros(3), -ui_prime*point1]), -1)
+            P[2*index+1, :] = np.reshape(np.array([np.zeros(3), point1, -vi_prime*point1]), -1)
+        # solve
+        U, s,VT = np.linalg.svd(P)
+        H = VT[-1, :].reshape(3, 3)
+        H /= H[2, 2]
+
+        # evaluate H
+        inliers = []
+        count = 0
+        for index, match in enumerate(matches):
+            point1 = keypoints1[match[0], 0:2] # (ui, vi)
+            point1 = np.append(point1, 1) # (ui, vi, 1)
+            # project (ui, vi, 1) and get (ui', vi')
+            # (ui, vi, 1) -H-> (u, v, w) -norm-> (ui', vi', 1) -drop-> (ui, vi)
+            point2_pred = H.dot(point1)
+            point2_pred /= point2_pred[2]
+            point2_pred = point2_pred[0:2]
+            # compare prediction and ground truth
+            point2 = keypoints2[match[1], 0:2]
+            err = np.sqrt(np.sum(np.square(point2 - point2_pred)))
+            if err < reprojection_threshold:
+                count += 1
+                inliers.append(index)
+
+        # update the best model
+        if count > best_count:
+            best_model = H
+            best_inliers = inliers
+            best_count = count
+
+    return best_inliers, best_model
 
 '''
 GET_OBJECT_REGION: Get the parameters for each of the predicted object
@@ -158,7 +228,7 @@ def match_object(im1, descriptors1, keypoints1, im2, descriptors2, keypoints2,
     descriptors1, keypoints1, = select_keypoints_in_bbox(descriptors1,
         keypoints1, obj_bbox)
     matches = match_keypoints(descriptors1, descriptors2)
-    plot_matches(im1, im2, keypoints1, keypoints2, matches)
+    #plot_matches(im1, im2, keypoints1, keypoints2, matches)
     
     # Part B
     inliers, model = refine_match(keypoints1, keypoints2, matches)

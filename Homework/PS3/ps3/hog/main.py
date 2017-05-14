@@ -33,9 +33,25 @@ The magnitude is simply sqrt((P4-P6)^2 + (P2-P8)^2)
 '''
 def compute_gradient(im):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
-    
+    H, W = im.shape
+    angles = np.zeros((H-2, W-2))
+    magnitudes = np.zeros((H-2, W-2))
 
+    for i in range(1, H-1):
+        for j in range(1, W-1):
+            top = im[i-1, j]
+            bottom = im[i+1, j]
+            left = im[i, j-1]
+            right = im[i, j+1]
+            angle = np.arctan2(top-bottom, left-right) * (180/math.pi)
+            magnitude = np.sqrt((left-right)**2 + (top-bottom)**2)
+
+            if angle < 0:
+                angle += 180
+            angles[i-1, j-1] = angle
+            magnitudes[i-1, j-1] = magnitude
+
+    return angles, magnitudes
 '''
 GENERATE_HISTOGRAM Given matrices of angles and magnitudes of the image
 gradient, generate the histogram of angles
@@ -84,8 +100,30 @@ last bins respectively.OA
 '''
 def generate_histogram(angles, magnitudes, nbins = 9):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    histogram = np.zeros(nbins)
+    bin_interval = 180 / nbins
+    center_angles = np.zeros_like(histogram)
+    for i in xrange(nbins):
+        center_angles[i] = (0.5+i) * bin_interval
 
+    M, N = angles.shape
+    for m in xrange(M):
+        for n in xrange(N):
+            angle = angles[m, n]
+            mag = magnitudes[m, n]
+            bin_diff = np.abs(center_angles - angle)
+            # when the angle is near 0 degrees
+            if (180 - center_angles[-1] + angle) < bin_diff[-1]:
+                bin_diff[-1] = 180 - center_angles[-1] + angle
+            # when the angle is near 180 degrees
+            if (180 - angle + center_angles[0]) < bin_diff[0]:
+                bin_diff[0] = 180 - angle + center_angles[0]
+            # find two closet bins
+            bin1, bin2 = np.argsort(bin_diff)[0:2]
+            histogram[bin1] += mag * bin_diff[bin2] / (180.0/nbins)
+            histogram[bin2] += mag * bin_diff[bin1] / (180.0/nbins)
+
+    return histogram
 
 '''
 COMPUTE_HOG_FEATURES Computes the histogram of gradients features
@@ -132,8 +170,44 @@ train a classifier or use it as a feature vector.
 '''
 def compute_hog_features(im, pixels_in_cell, cells_in_block, nbins):
     # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # compute gradients for the image
+    angles, magnitudes = compute_gradient(im)
 
+    # define cells and blocks
+    cell_size = pixels_in_cell
+    block_size = pixels_in_cell * cells_in_block
+    # compute H_blocks, W_blocks, here block serves as filters in CNN
+    H, W = angles.shape
+    stride = block_size / 2
+    H_blocks = (H - block_size) / stride + 1
+    W_blocks = (W - block_size) / stride + 1
+
+    # construct hog feature
+    hog_feature = np.zeros((H_blocks, W_blocks, cells_in_block * cells_in_block * nbins))
+    for h in xrange(H_blocks):
+        for w in xrange(W_blocks):
+            block_angles = angles[h*stride : h*stride+block_size,
+                           w*stride : w*stride+block_size]
+            block_magnitudes = magnitudes[h*stride : h*stride+block_size,
+                               w*stride : w*stride+block_size]
+            # find histogram of a single block, loop over all cells in this block
+            block_hog_feature = np.zeros((cells_in_block, cells_in_block, nbins))
+            for i in xrange(cells_in_block):
+                for j in xrange(cells_in_block):
+                    cell_angles = block_angles[i*pixels_in_cell : (i+1)*pixels_in_cell,
+                                  j*pixels_in_cell : (j+1)*pixels_in_cell]
+                    cell_magnitudes = block_magnitudes[i*pixels_in_cell : (i+1)*pixels_in_cell,
+                                  j*pixels_in_cell : (j+1)*pixels_in_cell]
+                    cell_hist = generate_histogram(cell_angles, cell_magnitudes, nbins)
+                    block_hog_feature[i, j, :] = cell_hist
+
+            # flattened to a vector
+            block_hog_feature = np.reshape(block_hog_feature, -1)
+            # normalize
+            block_hog_feature /= np.linalg.norm(block_hog_feature)
+            hog_feature[h, w, :] = block_hog_feature
+
+    return hog_feature
 
 if __name__ == '__main__':
     # Part A: Checking the image gradient
