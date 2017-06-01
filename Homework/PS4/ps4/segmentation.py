@@ -30,8 +30,34 @@ The K-means algorithm can be done in the following steps:
     - Convergence happens when the centroids do not change
 '''
 def kmeans_segmentation(im, features, num_clusters):
-    # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # initialize some parameters
+    pixel_num = features.shape[0]
+    centeroid_indices = np.random.randint(pixel_num, size=num_clusters)
+    # randomly choose the initial centroids
+    current_centeroids = features[centeroid_indices]
+
+    # repeat until convergence
+    while True:
+        # find the distances of one pixel relative to all centeroids
+        dist = np.zeros((pixel_num, num_clusters))
+        for i in xrange(num_clusters):
+            dist[:, i] = np.linalg.norm(features - current_centeroids[i, :], axis=1)
+
+        # find the nearest cluster
+        nearest_clusters = np.argmin(dist, axis=1)
+        # update centeroids
+        prev_centeroids = current_centeroids
+        for i in xrange(num_clusters):
+            pixel_index = np.where(nearest_clusters == i)
+            cluster_features = features[pixel_index]
+            current_centeroids[i, :] = np.mean(cluster_features, axis=0)
+
+        # break when converged
+        if np.array_equal(current_centeroids, prev_centeroids):
+            break
+
+    pixel_clusters = np.reshape(nearest_clusters, (im.shape[0], im.shape[1]))
+    return pixel_clusters
 
 
 '''
@@ -43,7 +69,7 @@ Arguments:
         associated with each pixel. The #pixels are arranged in such a way
         that calling reshape((H,W)) will correspond to the image im.
 
-    bandwidth - A parameter that determines the radius of what particpates
+    bandwidth - A parameter that determines the radius of what participates
        in the mean computation
 
 Returns:
@@ -81,8 +107,43 @@ To perform mean shift:
         as the current mean feature vector.
 '''
 def meanshift_segmentation(im, features, bandwidth):
-    # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # initialize some parameters
+    H, W = im.shape[0], im.shape[1]
+    pixel_num, M = features.shape
+    mask = np.ones(pixel_num)
+    clusters = []
+
+    while np.sum(mask) > 0:
+        loc = np.argwhere(mask > 0)
+        idx = loc[int(np.random.choice(loc.shape[0], 1)[0])][0]
+        mask[idx] = 0
+
+        current_mean = features[idx]
+        prev_mean = current_mean
+
+        while True:
+            dist = np.linalg.norm(features - prev_mean, axis=1)
+            incircle = dist < bandwidth
+            mask[incircle] = 0
+            # update current_mean
+            current_mean = np.mean(features[incircle], axis=0)
+            if np.linalg.norm(current_mean - prev_mean) < 0.01 * bandwidth:
+                break
+            prev_mean = current_mean
+
+        isValid = True
+        for cluster in clusters:
+            if np.linalg.norm(cluster - current_mean) < 0.5 * bandwidth:
+                isValid = False
+        if isValid:
+            clusters.append(current_mean)
+
+    pixel_clusters = np.zeros((H, W))
+    clusters = np.array(clusters)
+    for i in range(pixel_num):
+        idx = np.argmin(np.linalg.norm(features[i, :] - clusters, axis=1))
+        pixel_clusters[i / W, i % W] = idx
+    return pixel_clusters.astype(int)
 
 
 def draw_clusters_on_image(im, pixel_clusters):
@@ -111,7 +172,7 @@ def draw_clusters_on_image(im, pixel_clusters):
 if __name__ == '__main__':
     
     # Change these parameters to see the effects of K-means and Meanshift
-    num_clusters = [5]
+    num_clusters = [5, 10, 15, 20]
     bandwidths = [0.3]
 
 

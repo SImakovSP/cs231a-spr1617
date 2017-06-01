@@ -246,12 +246,13 @@ train a classifier or use it as a feature vector.
 '''
 def compute_hog_features(im, pixels_in_cell, cells_in_block, nbins):
     height = im.shape[0] - 2
-    width = im.shape[1] - 2 
+    width = im.shape[1] - 2
 
     angles, magnitudes = compute_gradient(im)
 
     total_cells_in_block = cells_in_block * pixels_in_cell
     stride = total_cells_in_block / 2
+
     features = np.zeros((int(math.floor(height / stride)) - 1, 
         int(math.floor(width / stride)) - 1, 
         nbins * cells_in_block * cells_in_block))

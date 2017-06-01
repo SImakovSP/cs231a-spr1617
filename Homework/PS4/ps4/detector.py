@@ -48,9 +48,32 @@ boundary), add it to the bounding box list. At the very end, after implementing
 nonmaximal suppression, you will filter the nonmaximal bounding boxes out.
 '''
 def run_detector(im, clf, window_size, cell_size, block_size, nbins, thresh=1):
-    # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    # initialize parameters
+    im_h, im_w = im.shape[0], im.shape[1]
+    window_h, window_w = window_size[0], window_size[1]
+    stride = block_size * cell_size / 2
 
+    # sliding windows
+    bboxes = []
+    scores = []
+
+    for i in range(0, im_w - window_w, stride):
+        for j in range(0, im_h - window_h, stride):
+            bbox = [i, j, window_w, window_h]
+            im_i = im[j:j+window_h, i:i+window_w]
+            features_i = compute_hog_features(im_i, cell_size, block_size, nbins)
+            score_i = clf.decision_function(features_i.flatten().reshape(1, -1))
+            if score_i > thresh:
+                bboxes.append(bbox)
+                scores.append(score_i)
+
+    # reshape it to be a numpy array
+    bboxes = np.array(bboxes)
+    scores = np.array(scores)
+    print bboxes
+    print
+    print scores
+    return bboxes, scores
 
 '''
 NON_MAX_SUPPRESSION Given a list of bounding boxes, returns a subset that
@@ -78,8 +101,31 @@ the list if they do not significantly overlap with any already in the list.
 A significant overlap is if the center of one bbox is in the other bbox.
 '''
 def non_max_suppression(bboxes, confidences):
-    # TODO: Implement this method!
-    raise Exception('Not Implemented Error')
+    nms_bboxes = []
+    indices = np.argsort(-confidences.reshape(1, -1)).flatten()
+
+    for i in xrange(indices.shape[0]):
+        bbox = bboxes[indices[i], :]
+        if i == 0:
+            nms_bboxes.append(bbox)
+        else:
+            isValid = True
+            xmin, ymin, w, h = bbox[0], bbox[1], bbox[2], bbox[3]
+            xc = (xmin + (xmin+w)) / 2.0
+            yc = (ymin + (ymin+h)) / 2.0
+
+            for j in xrange(len(nms_bboxes)):
+                _xmin, _ymin, _w, _h = nms_bboxes[j][0], nms_bboxes[j][1], nms_bboxes[j][2], nms_bboxes[j][3]
+                _xmax, _ymax = (_xmin + _w), (_ymin + _h)
+                if (_xmin <= xc <= _xmax) and (_ymin <= yc <= _ymax):
+                    isValid = False
+                    break
+
+            if isValid:
+                nms_bboxes.append(bbox)
+
+    nms_bboxes = np.array(nms_bboxes)
+    return nms_bboxes
 
 
 if __name__ == '__main__':
@@ -112,6 +158,43 @@ if __name__ == '__main__':
     bboxes, scores = run_detector(im, clf, window_size, cell_size, block_size, nbins)
     plot_img_with_bbox(im, bboxes, 'Without nonmaximal suppresion')
     plt.show()
+
+    # hardcode results of part A to test
+    # bboxes = np.array([[ 30, 156, 36, 36],
+    #                    [ 42, 30, 36, 36],
+    #                    [ 54, 96, 36, 36],
+    #                    [ 72, 150, 36, 36],
+    #                    [ 84, 114, 36, 36],
+    #                    [ 84, 156, 36, 36],
+    #                    [ 84, 162, 36, 36],
+    #                    [ 90, 18, 36, 36],
+    #                    [108, 96, 36, 36],
+    #                    [114, 102, 36, 36],
+    #                    [132, 162, 36, 36],
+    #                    [138, 162, 36, 36],
+    #                    [144, 6, 36, 36],
+    #                    [162, 90, 36, 36],
+    #                    [180, 156, 36, 36],
+    #                    [186, 156, 36, 36],
+    #                    [192, 18, 36, 36]])
+    #
+    # scores = np.array([[ 5.4676642 ],
+    #                    [ 3.49777335],
+    #                    [ 6.82362964],
+    #                    [ 1.62377132],
+    #                    [ 2.33199309],
+    #                    [ 4.82920827],
+    #                    [ 1.60303111],
+    #                    [ 3.6570172 ],
+    #                    [ 1.98262616],
+    #                    [ 1.81467243],
+    #                    [ 3.3730434 ],
+    #                    [ 5.25463223],
+    #                    [ 1.19453514],
+    #                    [ 3.50124797],
+    #                    [ 4.14864491],
+    #                    [ 2.82021972],
+    #                    [ 1.30426116]])
 
     # Part B: Nonmaximal suppression
     bboxes = non_max_suppression(bboxes, scores)
